@@ -6,6 +6,12 @@
 -- mouseover is answered by the real unit, any other plate from what the plate itself shows (name, level, health,
 -- colour, elite and boss icons, threat glow). Things a plate can't show (auras, casts of other plates, power) are
 -- empty for plates that are not one of those units.
+--
+-- Unit events (casts, auras, threat...) only come for target, focus and mouseover on 3.3.5. They are sent again with
+-- the plate token to frames that want plate events: frames that registered an event for a nameplate token with
+-- RegisterUnitEvent, or frames given to TemucraftCompat.namePlates.WantEvents(frame). Cast events are sent with the
+-- newer arguments (unit, castID, spellID). When a plate gets or loses its real unit, UNIT_AURA is sent for it, and
+-- the cast start if that unit is casting.
 local TC = TemucraftCompat
 if TC.namePlates then return end
 
@@ -22,6 +28,15 @@ TC.namePlates = NP
 local custom = { NAME_PLATE_CREATED = true, NAME_PLATE_UNIT_ADDED = true, NAME_PLATE_UNIT_REMOVED = true,
 	FORBIDDEN_NAME_PLATE_CREATED = true, FORBIDDEN_NAME_PLATE_UNIT_ADDED = true, FORBIDDEN_NAME_PLATE_UNIT_REMOVED = true }
 TC.customEvents = TC.customEvents or {}
+-- unit events that are sent again for plate tokens
+TC.plateUnitEvents = TC.plateUnitEvents or {}
+for _, e in ipairs({ "UNIT_HEALTH", "UNIT_MAXHEALTH", "UNIT_NAME_UPDATE", "UNIT_THREAT_SITUATION_UPDATE", "UNIT_THREAT_LIST_UPDATE",
+	"UNIT_FACTION", "UNIT_FLAGS", "UNIT_LEVEL", "UNIT_CLASSIFICATION_CHANGED", "UNIT_AURA", "UNIT_TARGET",
+	"UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_DELAYED",
+	"UNIT_SPELLCAST_SUCCEEDED", "UNIT_SPELLCAST_CHANNEL_START", "UNIT_SPELLCAST_CHANNEL_UPDATE", "UNIT_SPELLCAST_CHANNEL_STOP",
+	"UNIT_SPELLCAST_INTERRUPTIBLE", "UNIT_SPELLCAST_NOT_INTERRUPTIBLE" }) do
+	TC.plateUnitEvents[e] = true
+end
 for e in pairs(custom) do TC.customEvents[e] = true end
 local listeners = {}   -- event -> { frame = true }
 
@@ -37,10 +52,7 @@ for _, m in pairs(TC.widgetMethods or {}) do
 		local register, unregister, isRegistered, unregisterAll = m.RegisterEvent, m.UnregisterEvent, m.IsEventRegistered, m.UnregisterAllEvents
 		m.RegisterEvent = function(self, event, ...)
 			if TC.customEvents[event] then remember(self, event) return true end
-			if event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" or event == "UNIT_NAME_UPDATE" or event == "UNIT_THREAT_SITUATION_UPDATE"
-				or event == "UNIT_THREAT_LIST_UPDATE" or event == "UNIT_FACTION" or event == "UNIT_LEVEL" or event == "UNIT_CLASSIFICATION_CHANGED" then
-				remember(self, event)
-			end
+			if TC.plateUnitEvents[event] then remember(self, event) end
 			return register(self, event, ...)
 		end
 		m.UnregisterEvent = function(self, event, ...)
@@ -62,14 +74,47 @@ for _, m in pairs(TC.widgetMethods or {}) do
 end
 
 -- Sends an event to every frame that registered it (through RegisterEvent or RegisterUnitEvent).
+-- A frame that used RegisterUnitEvent only gets the event for its units.
+local function unitAllowed(frame, event, unit)
+	local units = frame.__tcUnits and frame.__tcUnits[event]
+	return not units or type(unit) ~= "string" or units[unit] ~= nil
+end
 function TC.FireEvent(event, ...)
 	local l = listeners[event]
 	if not l then return end
 	for frame in pairs(l) do
-		local f = frame:GetScript("OnEvent")
-		if f then f(frame, event, ...) end
+		if unitAllowed(frame, event, (...)) then
+			local f = frame:GetScript("OnEvent")
+			if f then f(frame, event, ...) end
+		end
 	end
 end
+
+-- frames that want unit events for plate tokens
+local wanted = setmetatable({}, { __mode = "k" })
+local function wantsPlateEvents(frame)
+	if wanted[frame] then return true end
+	local units = frame.__tcUnits
+	if units then
+		for _, set in pairs(units) do
+			for u in pairs(set) do if type(u) == "string" and u:find("^nameplate%d+$") then return true end end
+		end
+	end
+	return false
+end
+-- Sends a unit event for a plate token to the frames that want plate events.
+function TC.FirePlateEvent(event, token, ...)
+	local l = listeners[event]
+	if not l then return end
+	for frame in pairs(l) do
+		if wantsPlateEvents(frame) and unitAllowed(frame, event, token) then
+			local f = frame:GetScript("OnEvent")
+			if f then f(frame, event, token, ...) end
+		end
+	end
+end
+-- Makes a frame get unit events for plate tokens (UNIT_AURA, casts...) even when it registered them with RegisterEvent.
+function NP.WantEvents(frame) wanted[frame] = true end
 
 -- ------------------------------------------------------------------------------------------------ plates
 local plates = {}        -- plate frame -> info table
@@ -123,13 +168,14 @@ local function remove(plate)
 	local token = info.token
 	TC.FireEvent("NAME_PLATE_UNIT_REMOVED", token)
 	byToken[token] = nil
-	info.token, info.guid, info.unit = nil, nil, nil
+	info.token, info.guid, info.unit, info.relayed = nil, nil, nil, nil
 	plate.namePlateUnitToken = nil
 end
 
 local function setup(plate)
 	if plates[plate] then return end
 	local info = regionsOf(plate)
+	info.plate = plate
 	plates[plate] = info
 	plate:HookScript("OnShow", add)
 	plate:HookScript("OnHide", remove)
@@ -192,6 +238,7 @@ NP.PlateData = function(plate) return plates[plate] and plateData(plates[plate])
 
 -- ------------------------------------------------------------------------------------------------ real units
 local rawUnitExists, rawUnitGUID, rawUnitName, rawUnitHealth = UnitExists, UnitGUID, UnitName, UnitHealth
+local rawCasting, rawChannel = UnitCastingInfo, UnitChannelInfo
 
 -- the plate's real unit right now: target (the only plate at full alpha while you have a target), mouseover, focus
 function NP.Bind(plate)
@@ -207,7 +254,35 @@ function NP.Bind(plate)
 		info.unit = "focus"
 	end
 	if info.unit then info.guid = rawUnitGUID(info.unit) end
+	NP.BindChanged(info)
 	return info.unit
+end
+
+-- the spell id of a cast, from the cast events or the combat log (Units.lua)
+local function castSpellId(guid, name)
+	local r = TC.castSpell and TC.castSpell[guid or ""]
+	if r and r.name == name then return r.id end
+end
+
+-- callback(plate, token, unit or nil) runs when a plate gets or loses its real unit
+NP.bindCallbacks = {}
+function NP.RegisterBindCallback(callback) NP.bindCallbacks[#NP.bindCallbacks + 1] = callback end
+
+-- When a plate gets or loses its real unit its auras change, and a cast of the new unit can be shown.
+function NP.BindChanged(info)
+	local now = (info.unit and info.guid) or false
+	if now == (info.relayed or false) then return end
+	info.relayed = now
+	local token = info.token
+	if not token then return end
+	for _, callback in ipairs(NP.bindCallbacks) do callback(info.plate, token, info.unit) end
+	TC.FirePlateEvent("UNIT_AURA", token)
+	if not now then return end
+	if not rawCasting then return end
+	local name, _, _, _, _, _, _, castID = rawCasting(info.unit)
+	if name then return TC.FirePlateEvent("UNIT_SPELLCAST_START", token, castID, castSpellId(info.guid, name)) end
+	name = rawChannel and rawChannel(info.unit)
+	if name then return TC.FirePlateEvent("UNIT_SPELLCAST_CHANNEL_START", token, nil, castSpellId(info.guid, name)) end
 end
 
 local function realUnit(token)
@@ -304,6 +379,26 @@ wrap("GetRaidTargetIndex", function(info)
 	return floor(l * 4 + 0.5) + floor(t * 4 + 0.5) * 4 + 1
 end)
 
+-- range checks: the unit can be any argument. A plate without a real unit counts as in range (the client shows
+-- plates only for units near you, and it can't tell how near).
+local function wrapRange(name, ...)
+	local raw = _G[name]
+	if type(raw) ~= "function" then return end
+	local fallback = { ... }
+	_G[name] = function(a, b, c, ...)
+		local token = (isPlateToken(a) and 1) or (isPlateToken(b) and 2) or (isPlateToken(c) and 3)
+		if not token then return raw(a, b, c, ...) end
+		local real = realUnit(token == 1 and a or token == 2 and b or c)
+		if not real then return unpack(fallback) end
+		if token == 1 then return raw(real, b, c, ...) elseif token == 2 then return raw(a, real, c, ...) end
+		return raw(a, b, real, ...)
+	end
+end
+wrapRange("IsSpellInRange", 1)
+wrapRange("IsItemInRange", 1)
+wrapRange("CheckInteractDistance", 1)
+wrapRange("UnitInRange", true, true)
+
 -- threat: the unit-to-unit functions take the plate token as the second unit
 local rawThreat = UnitThreatSituation
 if rawThreat then
@@ -398,3 +493,31 @@ driver:SetScript("OnEvent", function()
 	NP.Scan()
 	for plate, info in pairs(plates) do if info.token then NP.Bind(plate) end end
 end)
+
+-- unit events of target, focus and mouseover are sent again for the plates that show those units
+local relay = CreateFrame("Frame")
+local CAST = { UNIT_SPELLCAST_START = 1, UNIT_SPELLCAST_STOP = 1, UNIT_SPELLCAST_FAILED = 1, UNIT_SPELLCAST_INTERRUPTED = 1,
+	UNIT_SPELLCAST_DELAYED = 1, UNIT_SPELLCAST_SUCCEEDED = 1, UNIT_SPELLCAST_CHANNEL_START = 2, UNIT_SPELLCAST_CHANNEL_UPDATE = 2,
+	UNIT_SPELLCAST_CHANNEL_STOP = 2, UNIT_SPELLCAST_INTERRUPTIBLE = 2, UNIT_SPELLCAST_NOT_INTERRUPTIBLE = 2 }
+local SOURCES = { target = true, focus = true, mouseover = true }
+for e in pairs(TC.plateUnitEvents) do
+	if e ~= "UNIT_HEALTH" and e ~= "UNIT_MAXHEALTH" then relay:RegisterEvent(e) end
+end
+function NP.Relay(event, unit, ...)
+	if not SOURCES[unit] then return end
+	local guid = rawUnitGUID(unit)
+	if not guid then return end
+	for plate, info in pairs(plates) do
+		if info.token and info.unit == unit and info.guid == guid then
+			local kind = CAST[event]
+			if kind then
+				-- 3.3.5: unit, spellName, rank, lineID, spellID; newer clients: unit, castID, spellID
+				local _, _, lineID, spellID = ...
+				TC.FirePlateEvent(event, info.token, kind == 1 and lineID or nil, spellID)
+			else
+				TC.FirePlateEvent(event, info.token, ...)
+			end
+		end
+	end
+end
+relay:SetScript("OnEvent", function(_, event, unit, ...) NP.Relay(event, unit, ...) end)

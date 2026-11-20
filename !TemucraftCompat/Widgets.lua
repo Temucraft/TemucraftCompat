@@ -218,3 +218,56 @@ add("SetSecurityDisablePaste", function() end, only("EditBox"))
 add("SetSecurityDisableSetText", function() end, only("EditBox"))
 add("SetEnablePasting", function() end, only("EditBox"))
 add("SetForbidden", function() end)
+
+-- Cooldown swipe and edge settings (the 3.3.5 cooldown draws its own clock)
+add("GetCooldownDuration", function() return 0 end, only("Cooldown"))
+add("SetDrawBling", function() end, only("Cooldown"))
+add("SetEdgeTexture", function() end, only("Cooldown"))
+add("SetSwipeTexture", function() end, only("Cooldown"))
+add("SetUseCircularEdge", function() end, only("Cooldown"))
+add("SetEdgeScale", function() end, only("Cooldown"))
+add("SetBlingTexture", function() end, only("Cooldown"))
+-- Textures
+add("GetDesaturated", function(self) return self:IsDesaturated() end, only("Texture"))
+add("GetNumMaskTextures", function() return 0 end, only("Texture"))
+add("GetMaskTexture", function() return nil end, only("Texture"))
+-- Status bars: the 3.3.5 bar always fills from the left or the bottom
+add("SetReverseFill", function(self, on) self.__reverseFill = on and true or false end, only("StatusBar"))
+add("GetReverseFill", function(self) return self.__reverseFill or false end, only("StatusBar"))
+-- Animations
+add("GetFromAlpha", function(self) return self.__from or 0 end, only("Alpha"))
+add("GetToAlpha", function(self) return self.__to or ((self.__from or 0) + (self.GetChange and self:GetChange() or 0)) end, only("Alpha"))
+add("SetFromScale", function(self, x, y) self:SetScaleFrom(x, y) end, only("Scale"))
+add("SetToScale", function(self, x, y) self:SetScaleTo(x, y) end, only("Scale"))
+add("GetFromScale", function(self) local f = self.__sfrom or { 1, 1 } return f[1], f[2] end, only("Scale"))
+-- 3.3.5 animations always move the frame that owns the group: a target can't be chosen
+local anims = only("Alpha", "Scale", "Translation", "Rotation", "Animation", "Path")
+add("SetTarget", function(self, target) self.__target = target end, anims)
+add("GetTarget", function(self) return self.__target end, anims)
+add("SetChildKey", function(self, key) self.__childKey = key end, anims)
+add("SetTargetKey", function(self, key) self.__childKey = key end, anims)
+add("SetTargetName", function() end, anims)
+add("SetTargetParent", function() end, anims)
+add("SetAnimationSpeedMultiplier", function(self, m) self.__speed = m end, only("AnimationGroup"))
+add("GetAnimationSpeedMultiplier", function(self) return self.__speed or 1 end, only("AnimationGroup"))
+
+-- BackdropTemplateMixin: 3.3.5 frames draw backdrops natively, so the mixin only has the newer helper methods
+-- (it must not hold SetBackdrop & co, or Mixin would cover the native ones)
+if not BackdropTemplateMixin then
+	BackdropTemplateMixin = {}
+	function BackdropTemplateMixin:OnBackdropLoaded()
+		if self.backdropInfo then
+			self:SetBackdrop(self.backdropInfo)
+			local c, b = self.backdropColor, self.backdropBorderColor
+			if c then self:SetBackdropColor(c.r or c[1], c.g or c[2], c.b or c[3], self.backdropColorAlpha or 1) end
+			if b then self:SetBackdropBorderColor(b.r or b[1], b.g or b[2], b.b or b[3], self.backdropBorderColorAlpha or 1) end
+		end
+	end
+	function BackdropTemplateMixin:OnBackdropSizeChanged() end
+	function BackdropTemplateMixin:ApplyBackdrop() if self.backdropInfo then self:SetBackdrop(self.backdropInfo) end end
+	function BackdropTemplateMixin:ClearBackdrop() self:SetBackdrop(nil) self.backdropInfo = nil end
+	function BackdropTemplateMixin:HasBackdropInfo(info) return self.backdropInfo == info end
+	function BackdropTemplateMixin:GetEdgeSize() return self.backdropInfo and self.backdropInfo.edgeSize or 0 end
+	function BackdropTemplateMixin:SetupTextureCoordinates() end
+end
+add("GetLineHeight", function(self) local _, size = self:GetFont() return size or 12 end, only("FontString"))

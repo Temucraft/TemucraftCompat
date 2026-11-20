@@ -3,9 +3,11 @@ local function ns(name) _G[name] = _G[name] or {} return _G[name] end
 local function fill(t, fns) for k, v in pairs(fns) do if t[k] == nil then t[k] = v end end end
 local function packAura(name, rank, icon, count, debuffType, duration, expirationTime, source, isStealable, shouldConsolidate, spellId)
 	if not name then return nil end
+	local mine = source == "player" or source == "pet" or source == "vehicle"
 	return { name = name, rank = rank, icon = icon, applications = count or 0, dispelName = debuffType, duration = duration or 0,
 		expirationTime = expirationTime or 0, sourceUnit = source, isStealable = isStealable, spellId = spellId,
-		isFromPlayerOrPlayerPet = source == "player" or source == "pet" }
+		isFromPlayerOrPlayerPet = mine, nameplateShowPersonal = mine, nameplateShowAll = false, canApplyAura = false,
+		isBossAura = false, charges = 1, maxCharges = 1, timeMod = 1, points = {} }
 end
 
 fill(ns("C_AddOns"), {
@@ -111,6 +113,10 @@ fill(ns("C_UnitAuras"), {
 			end
 		end
 	end,
+	-- by slot or aura instance id (see Units.lua: both are the aura index, 101+ for debuffs)
+	GetAuraDataBySlot = function(unit, slot) return TemucraftCompat.AuraData(unit, slot) end,
+	GetAuraDataByAuraInstanceID = function(unit, id) return TemucraftCompat.AuraData(unit, id) end,
+	GetAuraSlots = function(unit, filter, maxSlots, token) return UnitAuraSlots(unit, filter, maxSlots, token) end,
 	GetAuraDataBySpellName = function(unit, name, filter)
 		for i = 1, 40 do
 			local a = packAura(UnitAura(unit, i, filter))
@@ -271,8 +277,23 @@ fill(ns("C_TransmogCollection"), { GetItemInfo = function() return nil end, GetS
 fill(ns("C_Traits"), { GetConfigInfo = function() return nil end, GetTreeNodes = function() return {} end, GetNodeInfo = function() return nil end, GetSubTreeInfo = function() return nil end })
 fill(ns("C_ClassTalents"), { GetActiveConfigID = function() return nil end, GetActiveHeroTalentSpec = function() return nil end, GetHeroTalentSpecsForClassSpec = function() return nil end })
 fill(ns("C_SpecializationInfo"), { GetSpecialization = function() return GetActiveTalentGroup and GetActiveTalentGroup() or 1 end, GetSpecializationInfo = function() return nil end })
+-- the few atlases ports use, drawn from 3.3.5 textures
+TemucraftCompat.atlases = TemucraftCompat.atlases or {}
+fill(TemucraftCompat.atlases, {
+	["ComboPoints-PointBg"] = { file = "Interface\\ComboFrame\\ComboPoint", leftTexCoord = 0, rightTexCoord = 0.375, topTexCoord = 0, bottomTexCoord = 1, width = 12, height = 16 },
+	["ComboPoints-ComboPoint"] = { file = "Interface\\ComboFrame\\ComboPoint", leftTexCoord = 0.375, rightTexCoord = 0.5625, topTexCoord = 0, bottomTexCoord = 1, width = 8, height = 16 },
+})
 fill(ns("C_Texture"), { GetAtlasInfo = function(atlas) return TemucraftCompat.atlases and TemucraftCompat.atlases[atlas] end })
 fill(ns("C_MountJournal"), { GetMountIDs = function() return {} end, GetNumMounts = function() return GetNumCompanions("MOUNT") end })
+-- retail content that 3.3.5 doesn't have: empty answers
+fill(ns("C_ChallengeMode"), { IsChallengeModeActive = function() return false end, GetActiveKeystoneInfo = function() return 0, {}, false end,
+	GetAffixInfo = function() return nil end, GetActiveChallengeMapID = function() return nil end })
+fill(ns("C_PvP"), { GetScoreInfo = function() return nil end, IsRatedBattleground = function() return false end, IsArena = function() return false end })
+fill(ns("C_TaskQuest"), { GetQuestsForPlayerByMapID = function() return {} end, GetQuestInfoByQuestID = function() return nil end })
+fill(ns("C_EncounterJournal"), { GetSectionInfo = function() return nil end })
+fill(ns("C_AlliedRaces"), { GetRaceInfoByID = function() return nil end })
+fill(ns("C_SpecializationInfo"), { GetAllSelectedPvpTalentIDs = function() return {} end, GetPvpTalentSlotInfo = function() return nil end })
+fill(ns("C_QuestLog"), { GetTitleForLogIndex = function(i) return (GetQuestLogTitle(i)) end })
 fill(ns("C_NamePlate"), { GetNamePlates = function() return {} end, GetNamePlateForUnit = function() return nil end })
 fill(ns("C_PlayerInfo"), { GUIDIsPlayer = function(g) return g and tonumber(g:sub(5, 5), 16) == 0 end })
 fill(ns("C_DateAndTime"), { GetCurrentCalendarTime = function()

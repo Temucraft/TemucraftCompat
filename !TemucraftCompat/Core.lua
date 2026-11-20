@@ -223,6 +223,11 @@ function Vector2DMixin:Subtract(o) self.x, self.y = self.x - o.x, self.y - o.y e
 function Vector2DMixin:ScaleBy(s) self.x, self.y = self.x * s, self.y * s end
 function Vector2DMixin:GetLength() return math.sqrt(self.x * self.x + self.y * self.y) end
 function Vector2DMixin:Clone() return CreateVector2D(self.x, self.y) end
+function Vector2DMixin:GetLengthSquared() return self.x * self.x + self.y * self.y end
+function Vector2DMixin:Normalize() local l = self:GetLength() if l > 0 then self.x, self.y = self.x / l, self.y / l end end
+function Vector2DMixin:DivideBy(s) self.x, self.y = self.x / s, self.y / s end
+function Vector2DMixin:Dot(o) return self.x * o.x + self.y * o.y end
+function Vector2DMixin:IsEqualTo(o) return self.x == o.x and self.y == o.y end
 def("CreateVector2D", function(x, y) local v = CreateFromMixins(Vector2DMixin) v:SetXY(x, y) return v end)
 
 -- C_Timer
@@ -365,3 +370,41 @@ def("Model_OnMouseWheel", function(self, delta)
 end)
 def("Model_StartPanning", function() end)
 def("Model_StopPanning", function() end)
+-- Expansion checks of the classic clients: 3.3.5 is Wrath of the Lich King
+def("LE_EXPANSION_CLASSIC", 0)
+def("LE_EXPANSION_BURNING_CRUSADE", 1)
+def("LE_EXPANSION_WRATH_OF_THE_LICH_KING", 2)
+def("LE_EXPANSION_NORTHREND", 2)
+def("ClassicExpansionAtLeast", function(expansion) return (expansion or 0) <= 2 end)
+def("GetClassicExpansionLevel", function() return 2 end)
+def("ClampedPercentageBetween", function(value, startValue, endValue)
+	if startValue == endValue then return 0 end
+	return Saturate((value - startValue) / (endValue - startValue))
+end)
+def("FlashClientIcon", function() end)   -- the 3.3.5 client can't flash its taskbar icon
+-- Help plates and tutorial alerts don't exist on 3.3.5
+def("HelpPlate_Show", function() end)
+def("HelpPlate_Hide", function() end)
+def("HelpPlate_IsShowing", function() return false end)
+def("MicroButtonAlert_SetText", function(alert, text)
+	local fs = alert and (alert.Text or alert.text)
+	if fs then fs:SetText(text or "") end
+end)
+-- Power types of newer clients (3.3.5 has SPELL_POWER_MANA to SPELL_POWER_RUNIC_POWER)
+def("SPELL_POWER_COMBO_POINTS", 4)
+def("SPELL_POWER_RUNES", 5)
+def("SPELL_POWER_SOUL_SHARDS", 7)
+def("SPELL_POWER_LUNAR_POWER", 8)
+def("SPELL_POWER_HOLY_POWER", 9)
+def("SPELL_POWER_ALTERNATE_POWER", 10)
+def("SPELL_POWER_MAELSTROM", 11)
+def("SPELL_POWER_CHI", 12)
+def("SPELL_POWER_INSANITY", 13)
+def("SPELL_POWER_OBSOLETE", 14)
+def("SPELL_POWER_OBSOLETE2", 15)
+def("SPELL_POWER_ARCANE_CHARGES", 16)
+def("SPELL_POWER_FURY", 17)
+def("SPELL_POWER_PAIN", 18)
+def("SPELL_POWER_ESSENCE", 19)
+def("ALTERNATE_POWER_INDEX", 10)
+def("SPEC_WARLOCK_DESTRUCTION", 3)
