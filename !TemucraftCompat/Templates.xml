@@ -1,0 +1,49 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+	<!-- Templates newer addons inherit. 3.3.5 frames support backdrops natively, so BackdropTemplate is empty. -->
+	<Frame name="BackdropTemplate" virtual="true"/>
+	<Font name="GameFontHighlightHuge" inherits="GameFontHighlightLarge" virtual="true">
+		<FontHeight><AbsValue val="20"/></FontHeight>
+	</Font>
+	<Font name="GameFontNormalHuge2" inherits="GameFontNormalLarge" virtual="true">
+		<FontHeight><AbsValue val="24"/></FontHeight>
+	</Font>
+	<ScrollFrame name="ScrollFrameTemplate" inherits="UIPanelScrollFrameTemplate" virtual="true"/>
+	
+	<EditBox name="SearchBoxTemplate" inherits="InputBoxTemplate" autoFocus="false" virtual="true">
+		<Size><AbsDimension x="150" y="20"/></Size>
+		<Layers>
+			<Layer level="OVERLAY">
+				<Texture name="$parentSearchIcon" parentKey="searchIcon" file="Interface\Common\UI-Searchbox-Icon">
+					<Size><AbsDimension x="14" y="14"/></Size>
+					<Anchors><Anchor point="LEFT"><Offset><AbsDimension x="0" y="-2"/></Offset></Anchor></Anchors>
+				</Texture>
+				<FontString name="$parentInstructions" parentKey="Instructions" inherits="GameFontDisable" text="SEARCH" justifyH="LEFT">
+					<Anchors><Anchor point="LEFT"><Offset><AbsDimension x="16" y="0"/></Offset></Anchor></Anchors>
+				</FontString>
+			</Layer>
+		</Layers>
+		<TextInsets><AbsInset left="16" right="4" top="0" bottom="0"/></TextInsets>
+		<Scripts>
+			<OnEditFocusGained>self.Instructions:Hide()</OnEditFocusGained>
+			<OnEditFocusLost>if self:GetText() == "" then self.Instructions:Show() end</OnEditFocusLost>
+			<OnTextChanged>if self:GetText() ~= "" then self.Instructions:Hide() elseif not self:HasFocus() then self.Instructions:Show() end</OnTextChanged>
+			<OnEscapePressed>self:SetText("") self:ClearFocus()</OnEscapePressed>
+			<OnEnterPressed>self:ClearFocus()</OnEnterPressed>
+		</Scripts>
+	</EditBox>
+	<EditBox name="BagSearchBoxTemplate" inherits="SearchBoxTemplate" virtual="true"/>
+	<Button name="WowStyle1DropdownTemplate" virtual="true">
+		<Size><AbsDimension x="150" y="26"/></Size>
+		<Scripts><OnLoad>TemucraftCompat.InitDropdownButton(self)</OnLoad></Scripts>
+	</Button>
+	<Button name="WowStyle2DropdownTemplate" inherits="WowStyle1DropdownTemplate" virtual="true"/>
+	<Frame name="WowScrollBoxList" virtual="true">
+		<Scripts><OnLoad>TemucraftCompat.InitScrollBox(self)</OnLoad></Scripts>
+	</Frame>
+	<Frame name="WowScrollBox" inherits="WowScrollBoxList" virtual="true"/>
+	<Slider name="MinimalScrollBarTemplate" inherits="UIPanelScrollBarTemplate" virtual="true">
+		<Scripts><OnLoad>TemucraftCompat.InitScrollBar(self)</OnLoad></Scripts>
+	</Slider>
+	<Slider name="MinimalScrollBar" inherits="MinimalScrollBarTemplate" virtual="true"/>
+	<Slider name="WowTrimScrollBar" inherits="MinimalScrollBarTemplate" virtual="true"/>
+</Ui>
