@@ -17,3 +17,13 @@ It only adds what the 3.3.5 client lacks and never replaces a function the clien
 | ScrollBox.lua | ScrollBox, DataProvider and ScrollUtil for lists |
 
 Things the 3.3.5 client can't do stay empty on purpose: muting single sounds, mask textures, edit mode, atlases.
+
+## Nameplates
+
+`NamePlates.lua` gives the 3.3.5 nameplates what newer nameplate addons expect: `C_NamePlate.GetNamePlates` /
+`GetNamePlateForUnit`, a `nameplateN` unit token per shown plate, and the `NAME_PLATE_CREATED`,
+`NAME_PLATE_UNIT_ADDED` and `NAME_PLATE_UNIT_REMOVED` events (frames can register them). The Unit functions take the
+tokens: a plate that is your target, mouseover or focus is answered by that unit; any other plate by what it shows
+(name, level, health, reaction and class from its colour, elite/boss icon, threat glow, raid icon). Health changes
+fire `UNIT_HEALTH` for the token. Auras, casts and power of other plates are empty: the 3.3.5 plate doesn't show them.
+Test: `lua5.1 tests/test_namePlates.lua` from the `!TemucraftCompat` folder (with `NamePlates.lua` next to it).

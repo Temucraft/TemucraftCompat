@@ -2,7 +2,7 @@
 ## Title: |cffffcc00Temucraft|r Compat
 ## Notes: Newer addon functions for the 3.3.5 client, so modern addons (Leatrix, Plater...) run with few changes.
 ## Author: Temucraft
-## Version: 1.0.0
+## Version: 1.1.0
 ## X-Temucraft: required
 
 Core.lua
@@ -14,3 +14,4 @@ Map.lua
 Menu.lua
 Settings.lua
 ScrollBox.lua
+NamePlates.lua
