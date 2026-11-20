@@ -131,7 +131,7 @@ def("GetSpecializationInfoByID", function() return nil end)
 def("SellCursorItem", function() end)
 def("MuteSoundFile", function() end)   -- the 3.3.5 client can't mute single sounds
 def("UnmuteSoundFile", function() end)
-def("StopSound", function() end)
+def("StopSound", function(handle) if handle == "music" then StopMusic() end end) -- music started as handle "music"
 def("PlaySoundKitID", function(id) return PlaySound(id) end)
 def("ConvertRGBtoColorString", function(c) return string.format("|cff%02x%02x%02x", c.r * 255, c.g * 255, c.b * 255) end)
 def("RGBToColorCode", function(r, g, b) return string.format("|cff%02x%02x%02x", r * 255, g * 255, b * 255) end)
@@ -342,3 +342,26 @@ if not CreateTreeDataProvider then
 	end
 end
 def("TaxiRequestEarlyLanding", function() end) -- no early landing on 3.3.5 (kept so addons can hook it)
+def("ToggleWorldMap", function() ToggleFrame(WorldMapFrame) end)
+-- Flight route hops: the node index at a hop of the route to a node, found from the 3.3.5 hop coordinates
+def("TaxiGetNodeSlot", function(node, slot, isDest)
+	local x, y
+	if slot <= 1 then x, y = TaxiGetSrcX(node, 1), TaxiGetSrcY(node, 1)
+	else x, y = TaxiGetDestX(node, slot - 1), TaxiGetDestY(node, slot - 1) end
+	if not x then return node end
+	local best, dist = node, math.huge
+	for i = 1, NumTaxiNodes() do
+		local nx, ny = TaxiNodePosition(i)
+		local d = (nx - x) ^ 2 + (ny - y) ^ 2
+		if d < dist then best, dist = i, d end
+	end
+	return best
+end)
+-- Model zoom and panning (newer Model functions; 3.3.5 models move by camera position)
+def("Model_OnMouseWheel", function(self, delta)
+	self.zoomLevel = Clamp((self.zoomLevel or 0) + delta * 0.15, 0, 1)
+	local _, y, z = self:GetPosition()
+	self:SetPosition(self.zoomLevel * 2, y or 0, z or 0)
+end)
+def("Model_StartPanning", function() end)
+def("Model_StopPanning", function() end)

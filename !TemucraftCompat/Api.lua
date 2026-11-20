@@ -252,7 +252,7 @@ fill(ns("C_SummonInfo"), {
 	CancelSummon = function() CancelSummon() end,
 })
 fill(ns("C_Sound"), {
-	IsPlaying = function() return false end,
+	IsPlaying = function(handle) return handle == "music" end,
 	PlayItemSound = function() end,
 	GetSoundScaledVolume = function() return 1 end,
 })
