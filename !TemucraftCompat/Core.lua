@@ -341,3 +341,4 @@ if not CreateTreeDataProvider then
 		return root
 	end
 end
+def("TaxiRequestEarlyLanding", function() end) -- no early landing on 3.3.5 (kept so addons can hook it)
