@@ -313,3 +313,8 @@ fill(Enum, {
 	ChatChannelType = { None = 0, Custom = 1, PrivateParty = 2, PublicParty = 3, Communities = 4 },
 	TooltipDataType = { Item = 0, Spell = 1, Unit = 2 },
 })
+
+-- Quest reward buttons (4.0+): 3.3.5 names them QuestInfoItem1, QuestInfoItem2... (used by Pawn's quest upgrade arrows)
+if QuestInfo_GetRewardButton == nil then
+	function QuestInfo_GetRewardButton(rewardsFrame, index) return _G["QuestInfoItem" .. index] end
+end
