@@ -318,3 +318,6 @@ fill(Enum, {
 if QuestInfo_GetRewardButton == nil then
 	function QuestInfo_GetRewardButton(rewardsFrame, index) return _G["QuestInfoItem" .. index] end
 end
+
+-- Channel notice texts the interface lacks (ChatFrame.lua errors "bad argument #1 to 'format'" without them)
+CHAT_NOT_IN_LFG_NOTICE = CHAT_NOT_IN_LFG_NOTICE or "[%s] You must be queued in Looking For Group to join this channel."
