@@ -59,6 +59,12 @@ Blizzard's secure frames (target, focus and party frames get blocked in combat).
 `if TemucraftCompat and TemucraftCompat.UnitEnv then setfenv(1, TemucraftCompat.UnitEnv) end`. Reads fall through to
 `_G` and writes go to `_G`, so the file works as before. Plater and Leatrix Plus do this.
 
+## Other addons
+
+`AddonFixes.lua`: Questie looks up the player's race by name to read quest race masks and stopped with
+"playerRaceId (a nil value)" for Temucraft's own races. Each of them is given the standard race whose quests it
+should see (Worgen: Human, Goblin: Orc...), and any race not in the list gets Human or Orc by faction.
+
 ## Tests
 
 From the repository root, with plain Lua 5.1 and small stand-ins for the client:
