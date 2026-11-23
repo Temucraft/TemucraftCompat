@@ -1,3 +1,4 @@
+if TemucraftCompat and TemucraftCompat.UnitEnv then setfenv(1, TemucraftCompat.UnitEnv) end -- Temucraft: nameplate unit tokens
 -- C_Map on 3.3.5: classic uiMapIDs (TemucraftCompat.UiMapData) on top of the old world map functions.
 local data = TemucraftCompat.UiMapData
 local byLegacy = {}

@@ -1,3 +1,4 @@
+if TemucraftCompat and TemucraftCompat.UnitEnv then setfenv(1, TemucraftCompat.UnitEnv) end -- Temucraft: nameplate unit tokens
 -- Settings (the newer interface options) as 3.3.5 Interface Options panels.
 Settings = Settings or {}
 local categories = {}

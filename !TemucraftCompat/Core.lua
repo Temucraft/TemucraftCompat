@@ -6,6 +6,13 @@ TemucraftCompat = TemucraftCompat or { version = 1 }
 local TC = TemucraftCompat
 TC.def = def
 
+-- Unit functions that take nameplate tokens (NamePlates.lua) live in TC.UnitEnv, not in _G. Replacing the client's
+-- own Unit functions in _G taints Blizzard's secure frames (target, focus, party frames in combat). Addons that want
+-- nameplate tokens run their files in this environment by starting each file with:
+--   if TemucraftCompat and TemucraftCompat.UnitEnv then setfenv(1, TemucraftCompat.UnitEnv) end
+-- Reads fall through to _G and writes go to _G, so the file works as before.
+TC.UnitEnv = TC.UnitEnv or setmetatable({}, { __index = _G, __newindex = _G })
+
 -- Game flavour: modern addons test these. 3.3.5 is "Wrath", the closest classic project.
 def("WOW_PROJECT_MAINLINE", 1)
 def("WOW_PROJECT_CLASSIC", 2)

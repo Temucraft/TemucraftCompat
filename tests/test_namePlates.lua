@@ -73,6 +73,11 @@ local function newPlate(name, level, color, hp, elite)
   return p, h
 end
 
+-- the client's hooksecurefunc: runs the hook after the original
+function hooksecurefunc(t, name, hook)
+  local orig = t[name]
+  t[name] = function(...) local r = { orig(...) } hook(...) return unpack(r) end
+end
 dofile(arg and arg[1] or "NamePlates.lua")
 local log = {}
 local listener = CreateFrame("Frame")
@@ -105,8 +110,14 @@ ok(UnitLevel("nameplate2") == 80, "target gone: back to the plate's own data")
 -- health events
 local hits = {}
 local hf = CreateFrame("Frame"); hf:RegisterEvent("UNIT_HEALTH"); hf:SetScript("OnEvent", function(_, e, u) hits[#hits + 1] = u end)
+TemucraftCompat.namePlates.WantEvents(hf)
+-- a frame that didn't ask for plate events (a Blizzard unit frame) must never get them: calling its OnEvent from addon
+-- code would taint it
+local blizz = {}
+local bf = CreateFrame("Frame"); bf:RegisterEvent("UNIT_HEALTH"); bf:SetScript("OnEvent", function(_, e, u) blizz[#blizz + 1] = u end)
 h1.value = 300; h1.scripts.OnValueChanged(h1)
 ok(hits[1] == "nameplate1" and UnitHealth("nameplate1") == 300, "UNIT_HEALTH for plate tokens")
+ok(#blizz == 0, "frames that didn't ask get no plate events")
 p1:Hide()
 ok(log[#log] == "NAME_PLATE_UNIT_REMOVED:nameplate1" and not UnitExists("nameplate1"), "hidden plate removed")
 local p3 = newPlate("Wolf", 5, {1, 1, 0}, 50); WorldFrame.kids[4] = p3; TemucraftCompat.namePlates.Scan()

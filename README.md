@@ -53,6 +53,12 @@ it, and the cast start if the unit is casting; `TemucraftCompat.namePlates.Regis
 `fn(plate, token, unit)` then. Range checks (`IsSpellInRange`, `IsItemInRange`, `CheckInteractDistance`,
 `UnitInRange`) take the tokens too; a plate without a real unit counts as in range.
 
+The Unit functions that take tokens are not put in `_G`: replacing the client's own Unit functions there taints
+Blizzard's secure frames (target, focus and party frames get blocked in combat). They live in
+`TemucraftCompat.UnitEnv`, and an addon that wants the tokens starts each Lua file with
+`if TemucraftCompat and TemucraftCompat.UnitEnv then setfenv(1, TemucraftCompat.UnitEnv) end`. Reads fall through to
+`_G` and writes go to `_G`, so the file works as before. Plater and Leatrix Plus do this.
+
 ## Tests
 
 From the repository root, with plain Lua 5.1 and small stand-ins for the client:

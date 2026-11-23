@@ -1,3 +1,4 @@
+if TemucraftCompat and TemucraftCompat.UnitEnv then setfenv(1, TemucraftCompat.UnitEnv) end -- Temucraft: nameplate unit tokens
 -- Newer menus (MenuUtil, Menu, dropdown buttons) drawn with the 3.3.5 UIDropDownMenu.
 local Description = {}
 Description.__index = Description

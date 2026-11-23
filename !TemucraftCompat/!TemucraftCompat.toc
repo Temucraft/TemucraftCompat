@@ -2,7 +2,7 @@
 ## Title: |cffffcc00Temucraft|r Compat
 ## Notes: Newer addon functions for the 3.3.5 client, so modern addons (Leatrix, Plater...) run with few changes.
 ## Author: Temucraft
-## Version: 1.3.0
+## Version: 1.3.1
 ## SavedVariables: TemucraftErrorLog
 ## X-Temucraft: required
 

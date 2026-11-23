@@ -1,3 +1,4 @@
+if TemucraftCompat and TemucraftCompat.UnitEnv then setfenv(1, TemucraftCompat.UnitEnv) end -- Temucraft: nameplate unit tokens
 -- C_ namespaces, built on the 3.3.5 functions. Each table is only filled with functions it doesn't have.
 local function ns(name) _G[name] = _G[name] or {} return _G[name] end
 local function fill(t, fns) for k, v in pairs(fns) do if t[k] == nil then t[k] = v end end end

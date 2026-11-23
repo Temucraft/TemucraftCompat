@@ -1,3 +1,4 @@
+if TemucraftCompat and TemucraftCompat.UnitEnv then setfenv(1, TemucraftCompat.UnitEnv) end -- Temucraft: nameplate unit tokens
 -- Widget methods newer clients have, added to the shared method tables of the 3.3.5 widget types.
 local hidden = CreateFrame("Frame")
 hidden:Hide()

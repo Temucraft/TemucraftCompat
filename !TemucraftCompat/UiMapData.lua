@@ -1,3 +1,4 @@
+if TemucraftCompat and TemucraftCompat.UnitEnv then setfenv(1, TemucraftCompat.UnitEnv) end -- Temucraft: nameplate unit tokens
 -- Classic uiMapIDs with their world bounds (width, height, left, top), parent, map type and 3.3.5 map area id.
 -- From Questie's 3.3.5 compatibility data (GPL-3.0).
 TemucraftCompat.UiMapData =

@@ -1,3 +1,4 @@
+if TemucraftCompat and TemucraftCompat.UnitEnv then setfenv(1, TemucraftCompat.UnitEnv) end -- Temucraft: nameplate unit tokens
 -- A small ScrollBox / DataProvider for lists (newer list widgets), built on a 3.3.5 scroll frame.
 local DataProvider = {}
 DataProvider.__index = DataProvider

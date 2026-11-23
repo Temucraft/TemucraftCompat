@@ -1,3 +1,4 @@
+if TemucraftCompat and TemucraftCompat.UnitEnv then setfenv(1, TemucraftCompat.UnitEnv) end -- Temucraft: nameplate unit tokens
 -- Object pools (ObjectPoolMixin, CreateFramePool, CreateTexturePool...) as newer clients have them.
 -- Same calls and same order of callbacks as the 9.x client code: creationFunc(pool), resetterFunc(pool, object).
 local def = TemucraftCompat.def

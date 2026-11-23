@@ -1,3 +1,4 @@
+if TemucraftCompat and TemucraftCompat.UnitEnv then setfenv(1, TemucraftCompat.UnitEnv) end -- Temucraft: nameplate unit tokens
 -- Nameplates for newer addons on 3.3.5: C_NamePlate, "nameplateN" unit tokens and the NAME_PLATE_* events.
 --
 -- The 3.3.5 client has nameplate frames but no unit for them. This finds the plates among WorldFrame's children,
@@ -46,31 +47,30 @@ local function remember(frame, event)
 	l[frame] = true
 end
 
+-- Watch registrations with secure post-hooks. Replacing RegisterEvent itself on the shared frame methods made every
+-- Blizzard frame that registers an event run addon code, which tainted it: in combat the target frame could no longer
+-- show and clicking a unit frame was refused (ADDON_ACTION_BLOCKED TargetFrame:Show, ADDON_ACTION_FORBIDDEN
+-- TargetUnit). hooksecurefunc runs after the real method and leaves the caller untainted. The 3.3.5 client ignores
+-- an event it doesn't know, so registering one of the new events is harmless and only remembered here.
 for _, m in pairs(TC.widgetMethods or {}) do
 	if type(m) == "table" and m.RegisterEvent and not m.__tcNamePlateEvents then
 		m.__tcNamePlateEvents = true
-		local register, unregister, isRegistered, unregisterAll = m.RegisterEvent, m.UnregisterEvent, m.IsEventRegistered, m.UnregisterAllEvents
-		m.RegisterEvent = function(self, event, ...)
-			if TC.customEvents[event] then remember(self, event) return true end
-			if TC.plateUnitEvents[event] then remember(self, event) end
-			return register(self, event, ...)
-		end
-		m.UnregisterEvent = function(self, event, ...)
+		hooksecurefunc(m, "RegisterEvent", function(self, event)
+			if TC.customEvents[event] or TC.plateUnitEvents[event] then remember(self, event) end
+		end)
+		hooksecurefunc(m, "UnregisterEvent", function(self, event)
 			if listeners[event] then listeners[event][self] = nil end
-			if TC.customEvents[event] then return end
-			return unregister(self, event, ...)
-		end
-		if isRegistered then
-			m.IsEventRegistered = function(self, event, ...)
-				if TC.customEvents[event] then return listeners[event] and listeners[event][self] and true or false end
-				return isRegistered(self, event, ...)
-			end
-		end
-		m.UnregisterAllEvents = function(self, ...)
-			for _, l in pairs(listeners) do l[self] = nil end
-			return unregisterAll(self, ...)
+		end)
+		if m.UnregisterAllEvents then
+			hooksecurefunc(m, "UnregisterAllEvents", function(self)
+				for _, l in pairs(listeners) do l[self] = nil end
+			end)
 		end
 	end
+end
+-- IsEventRegistered can't be wrapped without the same taint; this answers for the new events.
+function TC.IsCustomEventRegistered(frame, event)
+	return listeners[event] and listeners[event][frame] and true or false
 end
 
 -- Sends an event to every frame that registered it (through RegisterEvent or RegisterUnitEvent).
@@ -181,10 +181,10 @@ local function setup(plate)
 	plate:HookScript("OnHide", remove)
 	if info.health and info.health.HookScript then
 		info.health:HookScript("OnValueChanged", function()
-			if info.token then TC.FireEvent("UNIT_HEALTH", info.token) end
+			if info.token then TC.FirePlateEvent("UNIT_HEALTH", info.token) end
 		end)
 		info.health:HookScript("OnMinMaxChanged", function()
-			if info.token then TC.FireEvent("UNIT_MAXHEALTH", info.token) end
+			if info.token then TC.FirePlateEvent("UNIT_MAXHEALTH", info.token) end
 		end)
 	end
 	TC.FireEvent("NAME_PLATE_CREATED", plate)
@@ -295,6 +295,9 @@ local function realUnit(token)
 end
 NP.RealUnit = realUnit
 
+-- the Unit function replacements go into TC.UnitEnv only (see Core.lua), never into _G
+local function put(name, fn) rawset(TC.UnitEnv, name, fn) end
+
 local function isToken(u) return type(u) == "string" and byToken[u] ~= nil end
 local function isPlateToken(u) return type(u) == "string" and u:find("^nameplate%d+$") ~= nil end
 
@@ -302,7 +305,7 @@ local function isPlateToken(u) return type(u) == "string" and u:find("^nameplate
 local function wrap(name, fallback)
 	local raw = _G[name]
 	if type(raw) ~= "function" then return end
-	_G[name] = function(unit, ...)
+	local wrapped = function(unit, ...)
 		if isPlateToken(unit) then
 			local real, info = realUnit(unit)
 			if real then return raw(real, ...) end
@@ -312,13 +315,14 @@ local function wrap(name, fallback)
 		end
 		return raw(unit, ...)
 	end
+	put(name, wrapped)
 end
 
 -- two-unit functions (UnitCanAttack("player", plate)): the token can be either unit
 local function wrapPair(name, fallback)
 	local raw = _G[name]
 	if type(raw) ~= "function" then return end
-	_G[name] = function(a, b, ...)
+	local wrapped = function(a, b, ...)
 		local pa, pb = isPlateToken(a), isPlateToken(b)
 		if not pa and not pb then return raw(a, b, ...) end
 		local ra, ia, rb, ib
@@ -329,6 +333,7 @@ local function wrapPair(name, fallback)
 		if not info then return fallback(nil, nil) end
 		return fallback(info, plateData(info))
 	end
+	put(name, wrapped)
 end
 
 local hostile = function(_, d) return d ~= nil and d.reaction <= 4 end
@@ -385,7 +390,7 @@ local function wrapRange(name, ...)
 	local raw = _G[name]
 	if type(raw) ~= "function" then return end
 	local fallback = { ... }
-	_G[name] = function(a, b, c, ...)
+	local wrapped = function(a, b, c, ...)
 		local token = (isPlateToken(a) and 1) or (isPlateToken(b) and 2) or (isPlateToken(c) and 3)
 		if not token then return raw(a, b, c, ...) end
 		local real = realUnit(token == 1 and a or token == 2 and b or c)
@@ -393,6 +398,7 @@ local function wrapRange(name, ...)
 		if token == 1 then return raw(real, b, c, ...) elseif token == 2 then return raw(a, real, c, ...) end
 		return raw(a, b, real, ...)
 	end
+	put(name, wrapped)
 end
 wrapRange("IsSpellInRange", 1)
 wrapRange("IsItemInRange", 1)
@@ -402,7 +408,7 @@ wrapRange("UnitInRange", true, true)
 -- threat: the unit-to-unit functions take the plate token as the second unit
 local rawThreat = UnitThreatSituation
 if rawThreat then
-	UnitThreatSituation = function(unit, other, ...)
+	put("UnitThreatSituation", function(unit, other, ...)
 		if isPlateToken(other) then
 			local real, info = realUnit(other)
 			if real then return rawThreat(unit, real, ...) end
@@ -414,11 +420,11 @@ if rawThreat then
 			return nil
 		end
 		return rawThreat(unit, other, ...)
-	end
+	end)
 end
 local rawDetailed = UnitDetailedThreatSituation
 if rawDetailed then
-	UnitDetailedThreatSituation = function(unit, other, ...)
+	put("UnitDetailedThreatSituation", function(unit, other, ...)
 		if isPlateToken(other) then
 			local real, info = realUnit(other)
 			if real then return rawDetailed(unit, real, ...) end
@@ -426,10 +432,10 @@ if rawDetailed then
 			return t >= 2, t, t >= 2 and 100 or 0, t >= 2 and 100 or 0, 0
 		end
 		return rawDetailed(unit, other, ...)
-	end
+	end)
 end
 local rawIsUnit = UnitIsUnit
-UnitIsUnit = function(a, b)
+put("UnitIsUnit", function(a, b)
 	if a == b then return rawUnitExists(a) or isToken(a) end
 	local pa, pb = isPlateToken(a), isPlateToken(b)
 	if pa or pb then
@@ -439,7 +445,7 @@ UnitIsUnit = function(a, b)
 		return rawIsUnit(ra, rb)
 	end
 	return rawIsUnit(a, b)
-end
+end)
 
 -- ------------------------------------------------------------------------------------------------ C_NamePlate
 C_NamePlate = C_NamePlate or {}

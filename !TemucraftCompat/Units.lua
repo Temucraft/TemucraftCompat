@@ -1,3 +1,4 @@
+if TemucraftCompat and TemucraftCompat.UnitEnv then setfenv(1, TemucraftCompat.UnitEnv) end -- Temucraft: nameplate unit tokens
 -- Unit, spell and combat log functions of newer clients, built on the 3.3.5 ones.
 --
 -- Some functions exist on 3.3.5 but return their values in an older order (UnitAura, UnitCastingInfo,
