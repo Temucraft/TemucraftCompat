@@ -59,7 +59,7 @@ function UnitCastingInfo(u) if u == "target" and target and casting then return 
 function UnitChannelInfo() return nil end
 function IsSpellInRange(spell, unit) if unit == "target" then return 0 end return nil end
 function CheckInteractDistance(unit, i) return unit == "target" and 1 or nil end
-TemucraftCompat = { widgetMethods = { Frame = methods("Frame").__index } }
+TemucraftCompat = { widgetMethods = { Frame = methods("Frame").__index }, UnitEnv = setmetatable({}, { __index = _G, __newindex = _G }) }
 
 local function newPlate(name, level, color, hp, elite)
   local p = CreateFrame("Frame")
@@ -79,6 +79,8 @@ function hooksecurefunc(t, name, hook)
   t[name] = function(...) local r = { orig(...) } hook(...) return unpack(r) end
 end
 dofile(arg and arg[1] or "NamePlates.lua")
+-- the Unit functions that take plate tokens live in TemucraftCompat.UnitEnv: the test reads them from there
+for k, v in pairs(TemucraftCompat.UnitEnv) do _G[k] = v end
 local log = {}
 local listener = CreateFrame("Frame")
 listener:RegisterEvent("NAME_PLATE_UNIT_ADDED"); listener:RegisterEvent("NAME_PLATE_UNIT_REMOVED"); listener:RegisterEvent("NAME_PLATE_CREATED")

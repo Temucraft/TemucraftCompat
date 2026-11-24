@@ -165,17 +165,9 @@ def("SOUNDKIT", setmetatable({
 	IG_BACKPACK_OPEN = "igBackPackOpen", IG_BACKPACK_CLOSE = "igBackPackClose", TELL_MESSAGE = "TellMessage", AUCTION_WINDOW_OPEN = "AuctionWindowOpen",
 	AUCTION_WINDOW_CLOSE = "AuctionWindowClose", PVP_THROUGH_QUEUE = "PVPTHROUGHQUEUE", ALARM_CLOCK_WARNING_3 = "AlarmClockWarning3",
 }, { __index = function() return "igMainMenuOption" end }))
--- PlaySound in 3.3.5 takes a name; modern addons pass numbers. Numbers become the nearest known name.
-do
-	local real = PlaySound
-	local byId = { [850] = "igMainMenuOpen", [851] = "igMainMenuClose", [852] = "igMainMenuOption", [856] = "igMainMenuOptionCheckBoxOn",
-		[857] = "igMainMenuOptionCheckBoxOff", [1115] = "UChatScrollButton", [8959] = "RaidWarning", [8960] = "ReadyCheck", [3175] = "TellMessage" }
-	PlaySound = function(sound, channel, ...)
-		if type(sound) == "number" then sound = byId[sound] or "igMainMenuOption" end
-		if channel == "Master" or channel == "SFX" or channel == nil then return real(sound) end
-		return real(sound, channel, ...)
-	end
-end
+-- PlaySound: the 3.3.5 client already takes a sound kit number as well as a name, so it is left as it is. It must
+-- never be replaced: Blizzard's own frames call it (target frame, spell book...), and a replaced PlaySound tainted
+-- them, so in combat they could no longer show or hide (ADDON_ACTION_BLOCKED TargetFrame:Show and others).
 
 -- Mixins
 def("Mixin", function(object, ...)

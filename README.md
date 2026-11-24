@@ -17,6 +17,19 @@ It only adds what the 3.3.5 client lacks and never replaces a function the clien
 | Menu.lua | MenuUtil, Menu and dropdown buttons, drawn with UIDropDownMenu |
 | Settings.lua | Settings categories as Interface Options panels |
 | ScrollBox.lua | ScrollBox, DataProvider and ScrollUtil for lists |
+| ErrorLog.lua | The UI error log (every Lua error and blocked action, also when BugGrabber is installed), `/tcerrors` |
+
+## UI error log
+
+`/tcerrors` opens a window with the whole log as plain text in one box: Select all, then Ctrl+C copies it. Buttons
+filter by kind (All, Errors, Blocked), a filter box finds text, Clear empties the log and Save to file reloads the UI,
+which writes the log (also as plain text, in `TemucraftErrorLog.text`) to
+`WTF\Account\<account>\SavedVariables\!TemucraftCompat.lua`. The launcher's Copy diagnostics reads it from there.
+`/tcerrors list` prints the newest in the chat, `/tcerrors save`, `/tcerrors clear` and `/tcerrors quiet` do the same as
+the buttons and turn the chat notice off.
+
+Blizzard functions are never replaced (PlaySound already takes sound kit numbers on 3.3.5): a replaced function
+that Blizzard's frames call taints them, and in combat they can no longer show or hide.
 
 Things the 3.3.5 client can't do stay empty on purpose: muting single sounds, mask textures, edit mode, atlases
 (except a few drawn from 3.3.5 textures, like the combo points).

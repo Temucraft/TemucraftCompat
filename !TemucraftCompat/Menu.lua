@@ -36,7 +36,7 @@ function Description:QueueTitle(t) return self:CreateTitle(t) end
 function Description:QueueDivider() return self:CreateDivider() end
 function Description:ClearQueuedDescriptions() end
 
-local holder = CreateFrame("Frame", "TemucraftCompatMenuDropDown", UIParent, "UIDropDownMenuTemplate")
+local holder   -- the dropdown the menus are drawn in, made the first time a menu opens
 local openOwner, openRoot
 
 local function buildLevel(desc, level)
@@ -64,21 +64,28 @@ local function buildLevel(desc, level)
 		UIDropDownMenu_AddButton(info, level)
 	end
 end
-UIDropDownMenu_Initialize(holder, function(self, level, menuList)
-	local desc = level == 1 and openRoot or menuList
-	if desc then buildLevel(desc, level) end
-end, "MENU")
+-- Made and set up only when an addon opens a menu: setting up a dropdown at load writes the dropdown globals
+-- (UIDROPDOWNMENU_MENU_LEVEL and others) from addon code, and Blizzard's target and party frames read them.
+local function Holder()
+	if holder then return holder end
+	holder = CreateFrame("Frame", "TemucraftCompatMenuDropDown", UIParent, "UIDropDownMenuTemplate")
+	UIDropDownMenu_Initialize(holder, function(self, level, menuList)
+		local desc = level == 1 and openRoot or menuList
+		if desc then buildLevel(desc, level) end
+	end, "MENU")
+	return holder
+end
 
 local function open(owner, generator, anchorToCursor)
 	local root = newDesc("root")
 	generator(owner, root)
 	openOwner, openRoot = owner, root
-	ToggleDropDownMenu(1, nil, holder, anchorToCursor and "cursor" or owner, anchorToCursor and 0 or 0, 0)
+	ToggleDropDownMenu(1, nil, Holder(), anchorToCursor and "cursor" or owner, anchorToCursor and 0 or 0, 0)
 	if owner then owner.menu = DropDownList1 end
 	return DropDownList1
 end
 local menuFrame = DropDownList1
-menuFrame.ReinitializeAll = function() if openRoot then CloseDropDownMenus() ToggleDropDownMenu(1, nil, holder, openOwner, 0, 0) end end
+menuFrame.ReinitializeAll = function() if openRoot then CloseDropDownMenus() ToggleDropDownMenu(1, nil, Holder(), openOwner, 0, 0) end end
 menuFrame:HookScript("OnHide", function()
 	local owner = openOwner
 	if owner and owner.menu then
