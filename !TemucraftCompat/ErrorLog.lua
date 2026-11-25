@@ -284,6 +284,18 @@ local function MakeWindow()
 	local hint = f:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
 	hint:SetPoint("LEFT", selectAll, "RIGHT", 8, 0)
 	hint:SetText("then Ctrl+C to copy")
+	-- one-click copy when TemucraftCrash (version.dll) gives the game TemucraftCopyText
+	if type(TemucraftCopyText) == "function" then
+		local copy = Button(f, "Copy all", 100)
+		copy:SetPoint("LEFT", selectAll, "RIGHT", 6, 0)
+		copy:SetScript("OnClick", function()
+			TemucraftCopyText(edit.logText or edit:GetText() or "")
+			hint:SetText("Copied to the clipboard")
+		end)
+		hint:ClearAllPoints()
+		hint:SetPoint("LEFT", copy, "RIGHT", 8, 0)
+		hint:SetText("")
+	end
 	local closeBottom = Button(f, "Close", 90)
 	closeBottom:SetPoint("BOTTOMRIGHT", -20, 16)
 	closeBottom:SetScript("OnClick", function() f:Hide() end)
