@@ -132,7 +132,10 @@ def("GetFileIDFromPath", function(path) return path end)
 def("IsMoviePlayable", function() return false end)
 def("GetCreatureDifficultyColor", function(level) return GetQuestDifficultyColor(level) end)
 def("GetInspectSpecialization", function() return 0 end)
-def("GetSpecialization", function() return GetActiveTalentGroup and GetActiveTalentGroup() or 1 end)
+-- GetSpecialization is not put in _G: ported code tests `if GetSpecialization then` to find a retail client, and the
+-- 3.3.5 talent group (1/2) is no specialization index. Code run in TC.UnitEnv (Plater) gets a retail-style "no
+-- specialization" (nil); ports that want the talent group call the 3.3.5 GetActiveTalentGroup.
+rawset(TC.UnitEnv, "GetSpecialization", function() return nil end)
 def("GetSpecializationInfo", function() return nil end)
 def("GetSpecializationInfoByID", function() return nil end)
 def("SellCursorItem", function() end)

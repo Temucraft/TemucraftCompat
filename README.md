@@ -3,7 +3,11 @@
 Newer addon functions for the World of Warcraft 3.3.5a client, so addons written for Classic run with few changes.
 Temucraft's ports (Leatrix Plus, Leatrix Maps, Leatrix Sounds, Plater, idTip and more) depend on it.
 
-It only adds what the 3.3.5 client lacks and never replaces a function the client has.
+It only adds what the 3.3.5 client lacks and never replaces a function the client has, with one exception: the
+Texture method `SetGradient` is wrapped so it also takes the newer `(orient, colorA, colorB)` form (the 3.3.5 number
+form goes to the native method unchanged; no Blizzard Lua calls it, so it taints nothing).
+`GetSpecialization` is not defined in `_G` (ported code takes it as a sign of a retail client); code run in
+`TemucraftCompat.UnitEnv` gets one that returns nil (no specialization).
 
 | File | What it adds |
 |---|---|

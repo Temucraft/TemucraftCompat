@@ -160,9 +160,28 @@ add("SetRotation", function(self, rad)
 	local ulx, uly = p(0, 0) local llx, lly = p(0, 1) local urx, ury = p(1, 0) local lrx, lry = p(1, 1)
 	self:SetTexCoord(ulx, uly, llx, lly, urx, ury, lrx, lry)
 end, only("Texture"))
-add("SetGradient", function(self, orient, a, b)
-	if type(a) == "table" then return self:SetGradientAlpha(orient, a.r, a.g, a.b, a.a or 1, b.r, b.g, b.b, b.a or 1) end
-end, only("Texture"))
+-- SetGradient: 3.3.5 has SetGradient(orient, r1, g1, b1, r2, g2, b2); newer clients SetGradient(orient, colorA, colorB)
+-- with color tables (CreateColor). The native method is wrapped so both forms work: numbers go to the native method
+-- unchanged, color tables to SetGradientAlpha. No Blizzard Lua in the 3.3.5 FrameXML calls SetGradient (checked in
+-- locale-enUS / patch-enUS*.MPQ; XML <Gradient> is drawn natively), so no secure code runs through the wrapper.
+do
+	local T = byType.Texture
+	local native = T and T.SetGradient
+	if type(native) == "function" then
+		local function c(t, k, i) local v = t[k] if v == nil then v = t[i] end return v end
+		T.SetGradient = function(self, orient, a, b, ...)
+			if type(a) == "table" and type(b) == "table" then
+				return self:SetGradientAlpha(orient, c(a, "r", 1) or 1, c(a, "g", 2) or 1, c(a, "b", 3) or 1, c(a, "a", 4) or 1,
+					c(b, "r", 1) or 1, c(b, "g", 2) or 1, c(b, "b", 3) or 1, c(b, "a", 4) or 1)
+			end
+			return native(self, orient, a, b, ...)
+		end
+	elseif T then
+		add("SetGradient", function(self, orient, a, b)
+			if type(a) == "table" then return self:SetGradientAlpha(orient, a.r, a.g, a.b, a.a or 1, b.r, b.g, b.b, b.a or 1) end
+		end, only("Texture"))
+	end
+end
 -- Lines (textures made by CreateLine)
 add("SetStartPoint", function(self, point, rel, x, y) self.__p1 = { point, rel, x or 0, y or 0 } TemucraftCompat.LayoutLine(self) end, only("Texture"))
 add("SetEndPoint", function(self, point, rel, x, y) self.__p2 = { point, rel, x or 0, y or 0 } TemucraftCompat.LayoutLine(self) end, only("Texture"))

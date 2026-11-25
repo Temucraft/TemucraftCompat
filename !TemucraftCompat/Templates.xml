@@ -1,6 +1,9 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/">
-	<!-- Templates newer addons inherit. 3.3.5 frames support backdrops natively, so BackdropTemplate is empty. -->
-	<Frame name="BackdropTemplate" virtual="true"/>
+	<!-- Templates newer addons inherit. 3.3.5 frames support backdrops natively, so BackdropTemplate only mixes in the
+	     newer helper methods (ApplyBackdrop, OnBackdropLoaded...; Widgets.lua). -->
+	<Frame name="BackdropTemplate" virtual="true">
+		<Scripts><OnLoad>if BackdropTemplateMixin then Mixin(self, BackdropTemplateMixin) self:OnBackdropLoaded() end</OnLoad></Scripts>
+	</Frame>
 	<Font name="GameFontHighlightHuge" inherits="GameFontHighlightLarge" virtual="true">
 		<FontHeight><AbsValue val="20"/></FontHeight>
 	</Font>

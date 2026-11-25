@@ -12,11 +12,17 @@ end
 TemucraftCompat.UiMapIDFromAreaID = function(areaID) return byLegacy[areaID] end
 TemucraftCompat.AreaIDFromUiMapID = function(ui) return data[ui] and data[ui].mapID end
 
-local current -- the player's uiMapID, read while the world map is closed
+-- The player's map is read with SetMapToCurrentZone only on the zone events (and when the world map closes):
+-- each call can fire WORLD_MAP_UPDATE to every map addon, and addons poll positions every frame.
+local current      -- the player's uiMapID, read while the world map is closed
+local currentArea  -- the legacy map area id SetMapToCurrentZone gave
+local refreshed = 0
 local function refresh()
 	if WorldMapFrame and WorldMapFrame:IsShown() then return end
 	SetMapToCurrentZone()
-	current = byLegacy[GetCurrentMapAreaID()] or current
+	currentArea = GetCurrentMapAreaID()
+	current = byLegacy[currentArea] or current
+	refreshed = GetTime()
 end
 local f = CreateFrame("Frame")
 for _, e in ipairs({ "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "ZONE_CHANGED", "ZONE_CHANGED_INDOORS" }) do f:RegisterEvent(e) end
@@ -42,13 +48,13 @@ fill("GetMapInfo", function(ui)
 	return { mapID = ui, name = d.name, mapType = d.mapType, parentMapID = d.parentMapID, flags = 0 }
 end)
 fill("GetBestMapForUnit", function(unit)
-	if unit ~= "player" and not UnitIsUnit(unit, "player") then return current end
-	refresh()
+	if not currentArea then refresh() end   -- before the first zone event
 	return current
 end)
 fill("GetPlayerMapPosition", function(ui, unit)
 	local open = WorldMapFrame and WorldMapFrame:IsShown()
-	if not open then SetMapToCurrentZone() end
+	-- another addon left the closed map on another zone: put it back, at most once a second
+	if not open and GetCurrentMapAreaID() ~= currentArea and GetTime() - refreshed > 1 then refresh() end
 	local x, y = GetPlayerMapPosition(unit or "player")
 	if not x or (x == 0 and y == 0) then return nil end
 	local shown = byLegacy[GetCurrentMapAreaID()]

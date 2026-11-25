@@ -20,10 +20,22 @@ fill(ns("C_AddOns"), {
 	EnableAddOn = function(a, c) return EnableAddOn(a, c) end,
 	DisableAddOn = function(a, c) return DisableAddOn(a, c) end,
 	IsAddOnLoadOnDemand = function(a) return IsAddOnLoadOnDemand(a) end,
-	GetAddOnEnableState = function(c, a) return GetAddOnEnableState and GetAddOnEnableState(c, a) or (select(4, GetAddOnInfo(a)) and 2 or 0) end,
+	-- newer clients: (name [, character]); the old global took (character, name). Both orders are taken.
+	GetAddOnEnableState = function(a, c)
+		if type(c) == "string" and GetAddOnInfo(c) and not GetAddOnInfo(a) then a, c = c, a end
+		if a == nil then return 0 end
+		return (select(4, GetAddOnInfo(a))) and 2 or 0
+	end,
 	DoesAddOnExist = function(a) return GetAddOnInfo(a) ~= nil end,
 	SaveAddOns = function() if SaveAddOns then SaveAddOns() end end,
 })
+
+-- a private tooltip for reading tooltips without touching GameTooltip
+function TemucraftCompat.ScanTip()
+	local tip = _G.TemucraftCompatScanTip or CreateFrame("GameTooltip", "TemucraftCompatScanTip", nil, "GameTooltipTemplate")
+	tip:SetOwner(WorldFrame, "ANCHOR_NONE")
+	return tip
+end
 
 fill(ns("C_Container"), {
 	GetContainerNumSlots = GetContainerNumSlots,
@@ -57,7 +69,12 @@ fill(ns("C_Item"), {
 	GetDetailedItemLevelInfo = GetDetailedItemLevelInfo,
 	IsEquippableItem = IsEquippableItem,
 	IsDressableItemByID = function(id) return IsEquippableItem(id) end,
-	RequestLoadItemDataByID = function(id) GameTooltip:SetHyperlink("item:" .. id) GameTooltip:Hide() end,
+	RequestLoadItemDataByID = function(id)
+		if not id then return end
+		local tip = TemucraftCompat.ScanTip()
+		tip:SetHyperlink("item:" .. id)
+		tip:Hide()
+	end,
 	DoesItemExistByID = function(id) return GetItemInfo(id) ~= nil end,
 	IsItemDataCachedByID = function(id) return GetItemInfo(id) ~= nil end,
 	GetItemSpell = GetItemSpell,
@@ -69,8 +86,7 @@ fill(ns("C_Item"), {
 do
 	local tip
 	local function description(spell)
-		tip = tip or CreateFrame("GameTooltip", "TemucraftCompatScanTip", nil, "GameTooltipTemplate")
-		tip:SetOwner(WorldFrame, "ANCHOR_NONE")
+		tip = TemucraftCompat.ScanTip()
 		local link = GetSpellLink(spell)
 		if not link then return "" end
 		tip:SetHyperlink(link)
@@ -188,12 +204,17 @@ fill(ns("C_GossipInfo"), {
 	SelectOptionByIndex = function(i) SelectGossipOption(i) end,
 	GetActiveQuests = function()
 		local r, raw = {}, { GetGossipActiveQuests() }
+		-- 3.3.5 (FrameXML GossipFrame.lua): 4 values per quest: title, level, isTrivial, isComplete
 		for i = 1, #raw, 4 do r[#r + 1] = { title = raw[i], questLevel = raw[i + 1], isTrivial = raw[i + 2], isComplete = raw[i + 3], questID = (i + 3) / 4 } end
 		return r
 	end,
 	GetAvailableQuests = function()
 		local r, raw = {}, { GetGossipAvailableQuests() }
-		for i = 1, #raw, 3 do r[#r + 1] = { title = raw[i], questLevel = raw[i + 1], isTrivial = raw[i + 2], questID = (i + 2) / 3 } end
+		-- 3.3.5 (FrameXML GossipFrame.lua): 5 values per quest: title, level, isTrivial, isDaily, isRepeatable
+		for i = 1, #raw, 5 do
+			r[#r + 1] = { title = raw[i], questLevel = raw[i + 1], isTrivial = raw[i + 2], frequency = raw[i + 3] and 1 or 0,
+				repeatable = raw[i + 4] and true or false, questID = (i + 4) / 5 }
+		end
 		return r
 	end,
 	SelectActiveQuest = function(i) SelectGossipActiveQuest(i) end,
@@ -203,16 +224,36 @@ fill(ns("C_GossipInfo"), {
 
 do
 	local completed = {}
+	local function idOf(i) local link = GetQuestLink(i) return link and tonumber(link:match("quest:(%d+)")) end
+	-- 3.3.5 has no QUEST_TURNED_IN: the quest on the reward page (QUEST_COMPLETE) counts as done when GetQuestReward runs
+	local pending
+	local function questOnRewardPage()
+		local title = GetTitleText and GetTitleText()
+		if title and title ~= "" then
+			for i = 1, GetNumQuestLogEntries() do
+				local t, _, _, _, header = GetQuestLogTitle(i)
+				if not header and t == title then return idOf(i) end
+			end
+		end
+		local id = GetQuestID and GetQuestID()
+		if type(id) == "number" and id ~= 0 then return id end
+	end
 	local f = CreateFrame("Frame")
 	f:RegisterEvent("QUEST_QUERY_COMPLETE")
 	f:RegisterEvent("PLAYER_LOGIN")
-	f:RegisterEvent("QUEST_TURNED_IN")
-	f:SetScript("OnEvent", function(_, event, id)
+	f:RegisterEvent("QUEST_COMPLETE")
+	f:RegisterEvent("QUEST_FINISHED")
+	f:SetScript("OnEvent", function(_, event)
 		if event == "PLAYER_LOGIN" then QueryQuestsCompleted()
 		elseif event == "QUEST_QUERY_COMPLETE" then GetQuestsCompleted(completed)
-		elseif event == "QUEST_TURNED_IN" and id then completed[id] = true end
+		elseif event == "QUEST_COMPLETE" then pending = questOnRewardPage()
+		elseif event == "QUEST_FINISHED" then pending = nil end
 	end)
-	local function idOf(i) local link = GetQuestLink(i) return link and tonumber(link:match("quest:(%d+)")) end
+	if GetQuestReward then
+		hooksecurefunc("GetQuestReward", function()
+			if pending then completed[pending] = true pending = nil end
+		end)
+	end
 	fill(ns("C_QuestLog"), {
 		GetNumQuestLogEntries = function() return GetNumQuestLogEntries() end,
 		GetInfo = function(i)
@@ -277,7 +318,8 @@ fill(ns("C_EditMode"), { SetActiveLayout = function() end, GetLayouts = function
 fill(ns("C_TransmogCollection"), { GetItemInfo = function() return nil end, GetSourceInfo = function() return nil end, PlayerHasTransmog = function() return false end })
 fill(ns("C_Traits"), { GetConfigInfo = function() return nil end, GetTreeNodes = function() return {} end, GetNodeInfo = function() return nil end, GetSubTreeInfo = function() return nil end })
 fill(ns("C_ClassTalents"), { GetActiveConfigID = function() return nil end, GetActiveHeroTalentSpec = function() return nil end, GetHeroTalentSpecsForClassSpec = function() return nil end })
-fill(ns("C_SpecializationInfo"), { GetSpecialization = function() return GetActiveTalentGroup and GetActiveTalentGroup() or 1 end, GetSpecializationInfo = function() return nil end })
+-- no GetSpecialization here: ported code takes it as a sign of a retail client (see Core.lua)
+fill(ns("C_SpecializationInfo"), { GetSpecializationInfo = function() return nil end })
 -- the few atlases ports use, drawn from 3.3.5 textures
 TemucraftCompat.atlases = TemucraftCompat.atlases or {}
 fill(TemucraftCompat.atlases, {
@@ -296,7 +338,8 @@ fill(ns("C_AlliedRaces"), { GetRaceInfoByID = function() return nil end })
 fill(ns("C_SpecializationInfo"), { GetAllSelectedPvpTalentIDs = function() return {} end, GetPvpTalentSlotInfo = function() return nil end })
 fill(ns("C_QuestLog"), { GetTitleForLogIndex = function(i) return (GetQuestLogTitle(i)) end })
 fill(ns("C_NamePlate"), { GetNamePlates = function() return {} end, GetNamePlateForUnit = function() return nil end })
-fill(ns("C_PlayerInfo"), { GUIDIsPlayer = function(g) return g and tonumber(g:sub(5, 5), 16) == 0 end })
+-- 3.3.5 player GUIDs start 0x000 (creatures 0xF13, pets 0xF14, items 0x400...)
+fill(ns("C_PlayerInfo"), { GUIDIsPlayer = function(g) return type(g) == "string" and g:sub(3, 5) == "000" end })
 fill(ns("C_DateAndTime"), { GetCurrentCalendarTime = function()
 	local wd, m, d, y = CalendarGetDate()
 	local h, mi = GetGameTime()

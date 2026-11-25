@@ -26,7 +26,8 @@ local function methods(kind)
   function m:GetTexture() return self.tex end
   function m:GetText() return self.text end
   function m:GetVertexColor() return unpack(self.color or {1,1,1}) end
-  function m:GetTexCoord() return 0,0.25,0,0.25 end
+  -- 3.3.5 order: ULx, ULy, LLx, LLy, URx, URy, LRx, LRy (default: the star cell)
+  function m:GetTexCoord() if self.tc then return unpack(self.tc) end return 0,0,0,0.25,0.25,0,0.25,0.25 end
   function m:GetMinMaxValues() return self.min or 0, self.max or 100 end
   function m:GetValue() return self.value or 0 end
   function m:GetStatusBarColor() return unpack(self.color or {1,0,0}) end
@@ -39,6 +40,7 @@ RAID_CLASS_COLORS = { MAGE = { r = 0.41, g = 0.80, b = 0.94 } }
 LOCALIZED_CLASS_NAMES_MALE = { MAGE = "Mage" }
 local target = nil
 function UnitExists(u) return u == "player" or (u == "target" and target ~= nil) end
+function GetRaidTargetIndex(u) return nil end
 function UnitGUID(u) if u == "target" and target then return target.guid end if u == "player" then return "0x0000000000000001" end end
 function UnitName(u) if u == "target" and target then return target.name end if u == "player" then return "Me" end end
 function UnitHealth(u) if u == "target" and target then return target.hp end return 100 end
@@ -163,6 +165,25 @@ ok(#got == 2, "RegisterUnitEvent filter respected")
 cast.__tcUnits.UNIT_SPELLCAST_START = { nameplate2 = true }
 ok(IsSpellInRange("Frostbolt", "nameplate2") == 0 and CheckInteractDistance("nameplate2", 4) == 1, "range checks use the real unit")
 ok(IsSpellInRange("Frostbolt", "nameplate1") == 1 and IsSpellInRange("Frostbolt", "player") == nil, "plate without a unit counts as in range; others untouched")
+-- raid icons: the cell from the upper left corner of the 8 tex coords
+local raid = p3.regions[10]; raid.shown = true   -- nameplate1 is the wolf now
+ok(GetRaidTargetIndex("nameplate1") == 1, "star")
+raid.tc = { 0.75,0.25, 0.75,0.5, 1,0.25, 1,0.5 }
+ok(GetRaidTargetIndex("nameplate1") == 8, "skull")
+raid.tc = { 0.25,0, 0.25,0.25, 0.5,0, 0.5,0.25 }
+ok(GetRaidTargetIndex("nameplate1") == 2, "circle")
+raid.shown = false
+-- an erroring handler doesn't stop the others, and the error goes to the error handler
+local caught
+function geterrorhandler() return function(e) caught = e end end
+local bad = CreateFrame("Frame"); bad:RegisterEvent("NAME_PLATE_CREATED")
+bad:SetScript("OnEvent", function() error("boom") end)
+local good = CreateFrame("Frame"); good:RegisterEvent("NAME_PLATE_CREATED")
+local reached = false
+good:SetScript("OnEvent", function() reached = true end)
+TemucraftCompat.FireEvent("NAME_PLATE_CREATED", p1)
+ok(reached and caught and tostring(caught):find("boom"), "an erroring handler is caught and the others still run")
+bad:UnregisterEvent("NAME_PLATE_CREATED"); good:UnregisterEvent("NAME_PLATE_CREATED")
 target = nil; casting = nil; got = {}
 NP.Bind(p2)
 ok(got[1] == "UNIT_AURA nameplate2 nil nil" and #got == 1, "losing the target sends UNIT_AURA once")

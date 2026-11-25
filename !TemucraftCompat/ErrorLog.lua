@@ -13,6 +13,7 @@ local STACK_LINES = 8
 local STACK_CHARS = 1500
 
 TemucraftErrorLog = TemucraftErrorLog or {}
+local early = TemucraftErrorLog   -- the saved variables replace this table after the addon's files run
 local log
 local seen = {}         -- message -> true, this session: the chat notice comes once per error
 local busy = false
@@ -91,17 +92,21 @@ local function Stack()
 	return s
 end
 
+-- busy stays set while the previous handler runs, so a chain that reaches one of our handlers again records once
 local function Handler(previous)
 	return function(message, ...)
-		if not busy then
-			busy = true
-			local ok, e = pcall(Record, "error", message, Stack())
-			if ok and e then pcall(Notice, e) end
-			busy = false
+		if busy then
+			if previous then return previous(message, ...) end
+			return
 		end
-		if previous then return previous(message, ...) end
+		busy = true
+		local ok, e = pcall(Record, "error", message, Stack())
+		if ok and e then pcall(Notice, e) end
+		if previous then pcall(previous, message, ...) end
+		busy = false
 	end
 end
+local ourHandler
 
 -- BugGrabber makes seterrorhandler do nothing, so errors are read from it instead. Its error text holds the
 -- message, then the stack and the locals.
@@ -136,8 +141,32 @@ end
 
 -- catch errors from now on (other addons load after this one); at login, wrap whatever handler is set by then
 -- (other addons set their own), so both keep working
-seterrorhandler(Handler(geterrorhandler()))
+ourHandler = Handler(geterrorhandler())
+seterrorhandler(ourHandler)
 HookBugGrabber()
+
+-- entries recorded before the saved variables loaded go into the saved table
+local function MergeEarly()
+	log = nil
+	if type(TemucraftErrorLog) ~= "table" then TemucraftErrorLog = early end
+	if TemucraftErrorLog == early then return end
+	local errors = Errors()
+	for _, old in ipairs(early.errors or {}) do
+		local found
+		for _, e in ipairs(errors) do
+			if e.msg == old.msg then found = e break end
+		end
+		if found then
+			found.count = (found.count or 1) + (old.count or 1)
+			found.last = old.last or found.last
+			found.stack = found.stack or old.stack
+		else
+			table.insert(errors, old)
+		end
+	end
+	while #errors > MAX do table.remove(errors, 1) end
+	early = TemucraftErrorLog
+end
 
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("ADDON_LOADED")
@@ -149,10 +178,17 @@ frame:RegisterEvent("MACRO_ACTION_BLOCKED")
 frame:RegisterEvent("MACRO_ACTION_FORBIDDEN")
 frame:SetScript("OnEvent", function(_, event, who, what)
 	if event == "ADDON_LOADED" then
+		if who == "!TemucraftCompat" then pcall(MergeEarly) end
 		HookBugGrabber()
 		return
 	elseif event == "PLAYER_LOGIN" then
-		if not HookBugGrabber() then seterrorhandler(Handler(geterrorhandler())) end
+		if not HookBugGrabber() then
+			local current = geterrorhandler()
+			if current ~= ourHandler then
+				ourHandler = Handler(current)
+				seterrorhandler(ourHandler)
+			end
+		end
 		return
 	elseif event == "PLAYER_LOGOUT" then
 		-- a plain text copy next to the entries, for the launcher and for reading the file by hand
@@ -161,8 +197,8 @@ frame:SetScript("OnEvent", function(_, event, who, what)
 		return
 	end
 	-- a blocked action is silent: the button just does nothing
-	local e = Record("blocked", ("%s: %s tried %s"):format(event, tostring(who or "?"), tostring(what or "?")), nil)
-	if e then Notice(e) end
+	local ok, e = pcall(Record, "blocked", ("%s: %s tried %s"):format(event, tostring(who or "?"), tostring(what or "?")), nil)
+	if ok and e then pcall(Notice, e) end
 end)
 
 local function Clear()

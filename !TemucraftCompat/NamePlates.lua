@@ -75,6 +75,14 @@ end
 
 -- Sends an event to every frame that registered it (through RegisterEvent or RegisterUnitEvent).
 -- A frame that used RegisterUnitEvent only gets the event for its units.
+-- Other addons' handlers run in pcall: one that errors doesn't stop the others or surface from Compat's frames.
+local function callHandler(f, frame, event, ...)
+	local ok, err = pcall(f, frame, event, ...)
+	if not ok then
+		local handler = geterrorhandler()
+		if handler then pcall(handler, err) end
+	end
+end
 local function unitAllowed(frame, event, unit)
 	local units = frame.__tcUnits and frame.__tcUnits[event]
 	return not units or type(unit) ~= "string" or units[unit] ~= nil
@@ -85,7 +93,7 @@ function TC.FireEvent(event, ...)
 	for frame in pairs(l) do
 		if unitAllowed(frame, event, (...)) then
 			local f = frame:GetScript("OnEvent")
-			if f then f(frame, event, ...) end
+			if f then callHandler(f, frame, event, ...) end
 		end
 	end
 end
@@ -109,7 +117,7 @@ function TC.FirePlateEvent(event, token, ...)
 	for frame in pairs(l) do
 		if wantsPlateEvents(frame) and unitAllowed(frame, event, token) then
 			local f = frame:GetScript("OnEvent")
-			if f then f(frame, event, token, ...) end
+			if f then callHandler(f, frame, event, token, ...) end
 		end
 	end
 end
@@ -244,13 +252,15 @@ local rawCasting, rawChannel = UnitCastingInfo, UnitChannelInfo
 function NP.Bind(plate)
 	local info = plates[plate]
 	if not info or not info.token then return end
-	local d = plateData(info)
+	-- only what binding needs (no plateData table: this runs every 0.1 s for every unbound plate)
+	local name = info.name and info.name:GetText()
 	info.unit = nil
-	if rawUnitExists("target") and plate:GetAlpha() >= 0.99 and rawUnitName("target") == d.name then
+	if rawUnitExists("target") and plate:GetAlpha() >= 0.99 and rawUnitName("target") == name then
 		info.unit = "target"
-	elseif d.mouseover and rawUnitExists("mouseover") and rawUnitName("mouseover") == d.name then
+	elseif info.highlight and info.highlight:IsShown() and rawUnitExists("mouseover") and rawUnitName("mouseover") == name then
 		info.unit = "mouseover"
-	elseif rawUnitExists("focus") and rawUnitName("focus") == d.name and rawUnitHealth("focus") == d.health then
+	elseif rawUnitExists("focus") and rawUnitName("focus") == name and info.health
+		and rawUnitHealth("focus") == (info.health:GetValue() or 0) then
 		info.unit = "focus"
 	end
 	if info.unit then info.guid = rawUnitGUID(info.unit) end
@@ -380,8 +390,9 @@ wrap("UnitBuff", function() return nil end)
 wrap("UnitDebuff", function() return nil end)
 wrap("GetRaidTargetIndex", function(info)
 	if not info or not info.raid or not info.raid:IsShown() then return nil end
-	local l, r, t, b = info.raid:GetTexCoord()
-	return floor(l * 4 + 0.5) + floor(t * 4 + 0.5) * 4 + 1
+	-- 3.3.5 GetTexCoord gives 8 values (ULx, ULy, LLx, LLy, URx, URy, LRx, LRy): the upper left corner is the cell
+	local ulx, uly = info.raid:GetTexCoord()
+	return floor(ulx * 4 + 0.5) + floor(uly * 4 + 0.5) * 4 + 1
 end)
 
 -- range checks: the unit can be any argument. A plate without a real unit counts as in range (the client shows
